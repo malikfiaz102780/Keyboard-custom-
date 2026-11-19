@@ -62,7 +62,7 @@ jobs:
 
           cat << 'EOF' > build.gradle
           plugins {
-              id 'com.android.application' version '8.3.2' apply false
+              id 'com.android.application' version '8.5.2' apply false
           }
           EOF
 
@@ -409,14 +409,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.4'
+          gradle-version: '8.7'
 
       - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+        run: gradle assembleDebug --warning-mode=none
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Malik-Custom-Keyboard-APK
           path: app/build/outputs/apk/debug/*.apk
-          
