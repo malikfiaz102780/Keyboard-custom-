@@ -167,6 +167,7 @@ jobs:
           cat << 'EOF' > app/src/main/res/layout/keyboard_layout.xml
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/keyboardRoot"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
               android:background="#0F172A"
@@ -174,6 +175,7 @@ jobs:
               android:padding="6dp">
 
               <LinearLayout
+                  android:id="@+id/topBar"
                   android:layout_width="match_parent"
                   android:layout_height="42dp"
                   android:gravity="center_vertical"
@@ -189,6 +191,15 @@ jobs:
                       android:textColor="#38BDF8"
                       android:textSize="12sp"
                       android:textStyle="bold" />
+
+                  <Button
+                      android:id="@+id/btnTheme"
+                      android:layout_width="wrap_content"
+                      android:layout_height="34dp"
+                      android:layout_marginEnd="4dp"
+                      android:text="THEME"
+                      android:textColor="#FFFFFF"
+                      android:textSize="10sp" />
 
                   <Button
                       android:id="@+id/btnLang"
@@ -260,6 +271,10 @@ jobs:
           cat << 'EOF' > app/src/main/java/com/malikfiaz/customkeyboard/MyCustomKeyboardService.java
           package com.malikfiaz.customkeyboard;
 
+          import android.animation.ArgbEvaluator;
+          import android.animation.ValueAnimator;
+          import android.graphics.Color;
+          import android.graphics.drawable.GradientDrawable;
           import android.inputmethodservice.InputMethodService;
           import android.view.KeyEvent;
           import android.view.View;
@@ -272,7 +287,34 @@ jobs:
 
               private boolean isUpperCase = false;
               private int langIndex = 0;
+              private int themeIndex = 0;
+
               private final String[] langs = {"EN", "UR", "AR", "HI"};
+
+              // Themes: [0]=Cyber Blue, [1]=Neon Purple, [2]=Emerald Hacker, [3]=Crimson Dark
+              private final String[] themeNames = {"CYBER", "NEON", "MATRIX", "CRIMSON"};
+              private final int[] accentColors = {
+                  Color.parseColor("#38BDF8"),
+                  Color.parseColor("#C084FC"),
+                  Color.parseColor("#22C55E"),
+                  Color.parseColor("#F43F5E")
+              };
+              private final int[] keyColors = {
+                  Color.parseColor("#1E293B"),
+                  Color.parseColor("#2E1065"),
+                  Color.parseColor("#052E16"),
+                  Color.parseColor("#4C0519")
+              };
+
+              // Moving background colors
+              private final int[] movingBgPalette = {
+                  Color.parseColor("#090D16"),
+                  Color.parseColor("#131B2E"),
+                  Color.parseColor("#1E1138"),
+                  Color.parseColor("#0A221A"),
+                  Color.parseColor("#280B18"),
+                  Color.parseColor("#090D16")
+              };
 
               private final String[] row1En = {"q","w","e","r","t","y","u","i","o","p"};
               private final String[] row2En = {"a","s","d","f","g","h","j","k","l"};
@@ -291,19 +333,105 @@ jobs:
               private final String[] row3Hi = {"ं","म","न","व","ल","स","य"};
 
               private View rootView;
+              private ValueAnimator bgAnimator;
 
               @Override
               public View onCreateInputView() {
                   rootView = getLayoutInflater().inflate(R.layout.keyboard_layout, null);
                   setupControls(rootView);
+                  applyTheme(rootView);
+                  startMovingBackground(rootView);
                   applyKeyLabels(rootView);
                   return rootView;
               }
 
-              private void setupControls(View parent) {
+              @Override
+              public void onFinishInputView(boolean finishingInput) {
+                  super.onFinishInputView(finishingInput);
+                  if (bgAnimator != null && bgAnimator.isRunning()) {
+                      bgAnimator.pause();
+                  }
+              }
+
+              @Override
+              public void onStartInputView(android.view.inputmethod.EditorInfo info, boolean restarting) {
+                  super.onStartInputView(info, restarting);
+                  if (bgAnimator != null && bgAnimator.isPaused()) {
+                      bgAnimator.resume();
+                  }
+              }
+
+              private void startMovingBackground(View parent) {
+                  if (bgAnimator != null) {
+                      bgAnimator.cancel();
+                  }
+                  bgAnimator = ValueAnimator.ofObject(new ArgbEvaluator(),
+                      movingBgPalette[0],
+                      movingBgPalette[1],
+                      movingBgPalette[2],
+                      movingBgPalette[3],
+                      movingBgPalette[4],
+                      movingBgPalette[5]
+                  );
+                  bgAnimator.setDuration(7000);
+                  bgAnimator.setRepeatCount(ValueAnimator.INFINITE);
+                  bgAnimator.setRepeatMode(ValueAnimator.RESTART);
+                  bgAnimator.addUpdateListener(animator -> {
+                      int animatedColor = (int) animator.getAnimatedValue();
+                      parent.setBackgroundColor(animatedColor);
+                  });
+                  bgAnimator.start();
+              }
+
+              private void applyTheme(View parent) {
+                  int accent = accentColors[themeIndex];
+                  int keyBg = keyColors[themeIndex];
+
                   TextView banner = parent.findViewById(R.id.brandBanner);
                   if (banner != null) {
-                      banner.setText("MALIK FIAZ • DARK HACKER KEYBOARD");
+                      banner.setTextColor(accent);
+                      banner.setText("MALIK FIAZ • " + themeNames[themeIndex] + " KEYBOARD");
+                  }
+
+                  Button btnTheme = parent.findViewById(R.id.btnTheme);
+                  if (btnTheme != null) {
+                      btnTheme.setText(themeNames[themeIndex]);
+                  }
+
+                  if (parent instanceof ViewGroup) {
+                      styleButtonsRecursive((ViewGroup) parent, keyBg, accent);
+                  }
+              }
+
+              private void styleButtonsRecursive(ViewGroup group, int keyBg, int accent) {
+                  for (int i = 0; i < group.getChildCount(); i++) {
+                      View child = group.getChildAt(i);
+                      if (child instanceof ViewGroup) {
+                          styleButtonsRecursive((ViewGroup) child, keyBg, accent);
+                      } else if (child instanceof Button) {
+                          Button b = (Button) child;
+                          GradientDrawable gd = new GradientDrawable();
+                          gd.setColor(keyBg);
+                          gd.setCornerRadius(14f);
+                          int id = b.getId();
+                          if (id == R.id.btnEnter || id == R.id.btnTheme) {
+                              gd.setStroke(2, accent);
+                          } else {
+                              gd.setStroke(1, Color.parseColor("#33FFFFFF"));
+                          }
+                          b.setBackground(gd);
+                          b.setTextColor(Color.WHITE);
+                      }
+                  }
+              }
+
+              private void setupControls(View parent) {
+                  Button btnTheme = parent.findViewById(R.id.btnTheme);
+                  if (btnTheme != null) {
+                      btnTheme.setOnClickListener(v -> {
+                          themeIndex = (themeIndex + 1) % themeNames.length;
+                          applyTheme(parent);
+                      });
                   }
 
                   Button btnLang = parent.findViewById(R.id.btnLang);
@@ -382,7 +510,7 @@ jobs:
                       } else if (child instanceof Button) {
                           Button b = (Button) child;
                           int id = b.getId();
-                          if (id != R.id.btnLang && id != R.id.btnShift && id != R.id.btnDel && id != R.id.btn123 && id != R.id.btnSpace && id != R.id.btnEnter) {
+                          if (id != R.id.btnTheme && id != R.id.btnLang && id != R.id.btnShift && id != R.id.btnDel && id != R.id.btn123 && id != R.id.btnSpace && id != R.id.btnEnter) {
                               if (idx[0] < letters.length) {
                                   String val = letters[idx[0]++];
                                   if ("EN".equals(langs[langIndex]) && isUpperCase) {
