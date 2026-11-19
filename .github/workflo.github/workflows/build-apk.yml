@@ -62,7 +62,7 @@ jobs:
 
           cat << 'EOF' > build.gradle
           plugins {
-              id 'com.android.application' version '8.5.2' apply false
+              id 'com.android.application' version '8.3.2' apply false
           }
           EOF
 
@@ -409,7 +409,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: '8.4'
 
       - name: Build Debug APK
         run: gradle assembleDebug --warning-mode=none
