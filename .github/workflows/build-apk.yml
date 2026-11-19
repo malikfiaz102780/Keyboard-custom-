@@ -1,0 +1,427 @@
+name: Build One-File Keyboard APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d $HOME/android-sdk/cmdline-tools
+          mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+          rm cmdline-tools.zip
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses > /dev/null
+          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Generate Android Keyboard Project
+        run: |
+          mkdir -p app/src/main/java/com/malikfiaz/customkeyboard
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/values
+
+          cat << 'EOF' > settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "MalikCustomKeyboard"
+          include ':app'
+          EOF
+
+          cat << 'EOF' > build.gradle
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          EOF
+
+          cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat << 'EOF' > app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.malikfiaz.customkeyboard'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.malikfiaz.customkeyboard"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.7.0'
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <application
+                  android:allowBackup="true"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
+
+                  <service
+                      android:name=".MyCustomKeyboardService"
+                      android:exported="true"
+                      android:label="@string/keyboard_name"
+                      android:permission="android.permission.BIND_INPUT_METHOD">
+                      <intent-filter>
+                          <action android:name="android.view.InputMethod" />
+                      </intent-filter>
+
+                      <meta-data
+                          android:name="android.view.im"
+                          android:resource="@xml/method" />
+                  </service>
+
+              </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/xml/method.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <input-method xmlns:android="http://schemas.android.com/apk/res/android"
+              android:isDefault="false" />
+          EOF
+
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Malik Keyboard</string>
+              <string name="keyboard_name">Malik Custom Keyboard</string>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/values/styles.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="KeyBtn">
+                  <item name="android:layout_width">0dp</item>
+                  <item name="android:layout_height">match_parent</item>
+                  <item name="android:layout_weight">1</item>
+                  <item name="android:layout_margin">2dp</item>
+                  <item name="android:backgroundTint">#1F2937</item>
+                  <item name="android:textColor">#FFFFFF</item>
+                  <item name="android:textSize">15sp</item>
+                  <item name="android:padding">0dp</item>
+              </style>
+
+              <style name="ActionKeyBtn" parent="KeyBtn">
+                  <item name="android:backgroundTint">#334155</item>
+                  <item name="android:textSize">11sp</item>
+              </style>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/layout/keyboard_layout.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:background="#0F172A"
+              android:orientation="vertical"
+              android:padding="6dp">
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="42dp"
+                  android:gravity="center_vertical"
+                  android:orientation="horizontal"
+                  android:paddingHorizontal="4dp">
+
+                  <TextView
+                      android:id="@+id/brandBanner"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:text="MALIK FIAZ • DARK HACKER KEYBOARD"
+                      android:textColor="#38BDF8"
+                      android:textSize="12sp"
+                      android:textStyle="bold" />
+
+                  <Button
+                      android:id="@+id/btnLang"
+                      android:layout_width="wrap_content"
+                      android:layout_height="34dp"
+                      android:backgroundTint="#1E293B"
+                      android:text="EN"
+                      android:textColor="#FFFFFF"
+                      android:textSize="11sp" />
+              </LinearLayout>
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="46dp"
+                  android:orientation="horizontal">
+                  <Button style="@style/KeyBtn" android:text="q" />
+                  <Button style="@style/KeyBtn" android:text="w" />
+                  <Button style="@style/KeyBtn" android:text="e" />
+                  <Button style="@style/KeyBtn" android:text="r" />
+                  <Button style="@style/KeyBtn" android:text="t" />
+                  <Button style="@style/KeyBtn" android:text="y" />
+                  <Button style="@style/KeyBtn" android:text="u" />
+                  <Button style="@style/KeyBtn" android:text="i" />
+                  <Button style="@style/KeyBtn" android:text="o" />
+                  <Button style="@style/KeyBtn" android:text="p" />
+              </LinearLayout>
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="46dp"
+                  android:orientation="horizontal">
+                  <Button style="@style/KeyBtn" android:text="a" />
+                  <Button style="@style/KeyBtn" android:text="s" />
+                  <Button style="@style/KeyBtn" android:text="d" />
+                  <Button style="@style/KeyBtn" android:text="f" />
+                  <Button style="@style/KeyBtn" android:text="g" />
+                  <Button style="@style/KeyBtn" android:text="h" />
+                  <Button style="@style/KeyBtn" android:text="j" />
+                  <Button style="@style/KeyBtn" android:text="k" />
+                  <Button style="@style/KeyBtn" android:text="l" />
+              </LinearLayout>
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="46dp"
+                  android:orientation="horizontal">
+                  <Button android:id="@+id/btnShift" style="@style/ActionKeyBtn" android:text="⇧" />
+                  <Button style="@style/KeyBtn" android:text="z" />
+                  <Button style="@style/KeyBtn" android:text="x" />
+                  <Button style="@style/KeyBtn" android:text="c" />
+                  <Button style="@style/KeyBtn" android:text="v" />
+                  <Button style="@style/KeyBtn" android:text="b" />
+                  <Button style="@style/KeyBtn" android:text="n" />
+                  <Button style="@style/KeyBtn" android:text="m" />
+                  <Button android:id="@+id/btnDel" style="@style/ActionKeyBtn" android:text="⌫" />
+              </LinearLayout>
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="46dp"
+                  android:orientation="horizontal">
+                  <Button android:id="@+id/btn123" style="@style/ActionKeyBtn" android:text="?123" />
+                  <Button android:id="@+id/btnSpace" style="@style/KeyBtn" android:layout_weight="4" android:text="Malik Keyboard" />
+                  <Button android:id="@+id/btnEnter" style="@style/ActionKeyBtn" android:backgroundTint="#0284C7" android:text="↵" />
+              </LinearLayout>
+
+          </LinearLayout>
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/malikfiaz/customkeyboard/MyCustomKeyboardService.java
+          package com.malikfiaz.customkeyboard;
+
+          import android.inputmethodservice.InputMethodService;
+          import android.view.KeyEvent;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.inputmethod.InputConnection;
+          import android.widget.Button;
+          import android.widget.TextView;
+
+          public class MyCustomKeyboardService extends InputMethodService {
+
+              private boolean isUpperCase = false;
+              private int langIndex = 0;
+              private final String[] langs = {"EN", "UR", "AR", "HI"};
+
+              private final String[] row1En = {"q","w","e","r","t","y","u","i","o","p"};
+              private final String[] row2En = {"a","s","d","f","g","h","j","k","l"};
+              private final String[] row3En = {"z","x","c","v","b","n","m"};
+
+              private final String[] row1Ur = {"ق","و","ع","ر","ت","ے","ء","ی","ہ","پ"};
+              private final String[] row2Ur = {"ا","س","د","ف","گ","ح","ج","ک","ل"};
+              private final String[] row3Ur = {"ز","ش","چ","ط","ب","ن","م"};
+
+              private final String[] row1Ar = {"ض","ص","ث","ق","ف","غ","ع","ه","خ","ح"};
+              private final String[] row2Ar = {"ش","س","ي","ب","ل","ا","ت","ن","م"};
+              private final String[] row3Ar = {"ئ","ء","ؤ","ر","لا","ى","ة"};
+
+              private final String[] row1Hi = {"ौ","ै","ा","ी","ू","ब","ह","ग","द","ज"};
+              private final String[] row2Hi = {"ो","े","्","ि","ु","प","र","क","त"};
+              private final String[] row3Hi = {"ं","म","न","व","ल","स","य"};
+
+              private View rootView;
+
+              @Override
+              public View onCreateInputView() {
+                  rootView = getLayoutInflater().inflate(R.layout.keyboard_layout, null);
+                  setupControls(rootView);
+                  applyKeyLabels(rootView);
+                  return rootView;
+              }
+
+              private void setupControls(View parent) {
+                  TextView banner = parent.findViewById(R.id.brandBanner);
+                  if (banner != null) {
+                      banner.setText("MALIK FIAZ • DARK HACKER KEYBOARD");
+                  }
+
+                  Button btnLang = parent.findViewById(R.id.btnLang);
+                  if (btnLang != null) {
+                      btnLang.setOnClickListener(v -> {
+                          langIndex = (langIndex + 1) % langs.length;
+                          btnLang.setText(langs[langIndex]);
+                          applyKeyLabels(parent);
+                      });
+                  }
+
+                  Button btnShift = parent.findViewById(R.id.btnShift);
+                  if (btnShift != null) {
+                      btnShift.setOnClickListener(v -> {
+                          isUpperCase = !isUpperCase;
+                          applyKeyLabels(parent);
+                      });
+                  }
+
+                  Button btnDel = parent.findViewById(R.id.btnDel);
+                  if (btnDel != null) {
+                      btnDel.setOnClickListener(v -> {
+                          InputConnection ic = getCurrentInputConnection();
+                          if (ic != null) {
+                              ic.deleteSurroundingText(1, 0);
+                          }
+                      });
+                  }
+
+                  Button btnSpace = parent.findViewById(R.id.btnSpace);
+                  if (btnSpace != null) {
+                      btnSpace.setOnClickListener(v -> commitText(" "));
+                  }
+
+                  Button btnEnter = parent.findViewById(R.id.btnEnter);
+                  if (btnEnter != null) {
+                      btnEnter.setOnClickListener(v -> {
+                          InputConnection ic = getCurrentInputConnection();
+                          if (ic != null) {
+                              ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+                              ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
+                          }
+                      });
+                  }
+              }
+
+              private void applyKeyLabels(View parent) {
+                  String[] r1, r2, r3;
+                  String currentLang = langs[langIndex];
+
+                  if ("UR".equals(currentLang)) {
+                      r1 = row1Ur; r2 = row2Ur; r3 = row3Ur;
+                  } else if ("AR".equals(currentLang)) {
+                      r1 = row1Ar; r2 = row2Ar; r3 = row3Ar;
+                  } else if ("HI".equals(currentLang)) {
+                      r1 = row1Hi; r2 = row2Hi; r3 = row3Hi;
+                  } else {
+                      r1 = row1En; r2 = row2En; r3 = row3En;
+                  }
+
+                  if (!(parent instanceof ViewGroup)) return;
+                  ViewGroup vg = (ViewGroup) parent;
+                  int letterIdx = 0;
+                  String[] allLetters = new String[r1.length + r2.length + r3.length];
+                  System.arraycopy(r1, 0, allLetters, 0, r1.length);
+                  System.arraycopy(r2, 0, allLetters, r1.length, r2.length);
+                  System.arraycopy(r3, 0, allLetters, r1.length + r2.length, r3.length);
+
+                  assignLettersRecursive(vg, allLetters, new int[]{0});
+              }
+
+              private void assignLettersRecursive(ViewGroup group, String[] letters, int[] idx) {
+                  for (int i = 0; i < group.getChildCount(); i++) {
+                      View child = group.getChildAt(i);
+                      if (child instanceof ViewGroup) {
+                          assignLettersRecursive((ViewGroup) child, letters, idx);
+                      } else if (child instanceof Button) {
+                          Button b = (Button) child;
+                          int id = b.getId();
+                          if (id != R.id.btnLang && id != R.id.btnShift && id != R.id.btnDel && id != R.id.btn123 && id != R.id.btnSpace && id != R.id.btnEnter) {
+                              if (idx[0] < letters.length) {
+                                  String val = letters[idx[0]++];
+                                  if ("EN".equals(langs[langIndex]) && isUpperCase) {
+                                      val = val.toUpperCase();
+                                  }
+                                  b.setText(val);
+                                  final String finalVal = val;
+                                  b.setOnClickListener(v -> commitText(finalVal));
+                              }
+                          }
+                      }
+                  }
+              }
+
+              private void commitText(String text) {
+                  InputConnection ic = getCurrentInputConnection();
+                  if (ic != null) {
+                      ic.commitText(text, 1);
+                  }
+              }
+          }
+          EOF
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build Debug APK
+        run: gradle assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Malik-Custom-Keyboard-APK
+          path: app/build/outputs/apk/debug/*.apk
+          
