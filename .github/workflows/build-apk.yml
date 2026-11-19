@@ -21,6 +21,7 @@ jobs:
 
       - name: Setup Android SDK
         run: |
+          set -e
           mkdir -p $HOME/android-sdk/cmdline-tools
           curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
           unzip -q cmdline-tools.zip -d $HOME/android-sdk/cmdline-tools
@@ -32,8 +33,9 @@ jobs:
           yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses > /dev/null
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Generate Android Keyboard Project
+      - name: Create Project Files
         run: |
+          set -e
           mkdir -p app/src/main/java/com/malikfiaz/customkeyboard
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/xml
@@ -370,7 +372,6 @@ jobs:
 
                   if (!(parent instanceof ViewGroup)) return;
                   ViewGroup vg = (ViewGroup) parent;
-                  int letterIdx = 0;
                   String[] allLetters = new String[r1.length + r2.length + r3.length];
                   System.arraycopy(r1, 0, allLetters, 0, r1.length);
                   System.arraycopy(r2, 0, allLetters, r1.length, r2.length);
@@ -417,7 +418,7 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build Debug APK
-        run: gradle assembleDebug
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
