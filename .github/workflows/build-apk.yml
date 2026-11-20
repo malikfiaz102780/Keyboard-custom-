@@ -1,69 +1,35 @@
-name: Build One-File Keyboard APK
-
-on:
-  push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
-
+name: Build Keyboard APK
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
-
-      - name: Setup Android SDK
+      - name: Setup SDK & Project
         run: |
           set -e
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
-          unzip -q cmdline-tools.zip -d $HOME/android-sdk/cmdline-tools
-          mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
-          rm cmdline-tools.zip
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
-          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses > /dev/null
-          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-
-      - name: Create Project Files
-        run: |
-          set -e
-          mkdir -p app/src/main/java/com/malikfiaz/customkeyboard
-          mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/xml
-          mkdir -p app/src/main/res/values
+          SDK=$HOME/android-sdk
+          mkdir -p $SDK/cmdline-tools app/src/main/java/com/malikfiaz/customkeyboard app/src/main/res/layout app/src/main/res/xml app/src/main/res/values
+          curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o sdk.zip
+          unzip -q sdk.zip -d $SDK/cmdline-tools && mv $SDK/cmdline-tools/cmdline-tools $SDK/cmdline-tools/latest && rm sdk.zip
+          echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
+          echo "$SDK/cmdline-tools/latest/bin:$SDK/platform-tools" >> $GITHUB_PATH
+          yes | $SDK/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK --licenses >/dev/null
+          $SDK/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
           cat << 'EOF' > settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
           rootProject.name = "MalikCustomKeyboard"
           include ':app'
           EOF
 
           cat << 'EOF' > build.gradle
-          plugins {
-              id 'com.android.application' version '8.3.2' apply false
-          }
+          plugins { id 'com.android.application' version '8.3.2' apply false }
           EOF
 
           cat << 'EOF' > gradle.properties
@@ -72,205 +38,65 @@ jobs:
           EOF
 
           cat << 'EOF' > app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
-
+          plugins { id 'com.android.application' }
           android {
-              namespace 'com.malikfiaz.customkeyboard'
-              compileSdk 34
-
-              defaultConfig {
-                  applicationId "com.malikfiaz.customkeyboard"
-                  minSdk 24
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-
-          dependencies {
+            namespace 'com.malikfiaz.customkeyboard'
+            compileSdk 34
+            defaultConfig { applicationId "com.malikfiaz.customkeyboard"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }
+            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
           }
           EOF
 
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <application
-                  android:allowBackup="true"
-                  android:label="@string/app_name"
-                  android:supportsRtl="true"
-                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
-
-                  <service
-                      android:name=".MyCustomKeyboardService"
-                      android:exported="true"
-                      android:label="@string/keyboard_name"
-                      android:permission="android.permission.BIND_INPUT_METHOD">
-                      <intent-filter>
-                          <action android:name="android.view.InputMethod" />
-                      </intent-filter>
-
-                      <meta-data
-                          android:name="android.view.im"
-                          android:resource="@xml/method" />
-                  </service>
-
-              </application>
+            <application android:label="Malik Keyboard" android:supportsRtl="true" android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+              <service android:name=".MyCustomKeyboardService" android:exported="true" android:label="Malik Custom Keyboard" android:permission="android.permission.BIND_INPUT_METHOD">
+                <intent-filter><action android:name="android.view.InputMethod" /></intent-filter>
+                <meta-data android:name="android.view.im" android:resource="@xml/method" />
+              </service>
+            </application>
           </manifest>
           EOF
 
           cat << 'EOF' > app/src/main/res/xml/method.xml
           <?xml version="1.0" encoding="utf-8"?>
-          <input-method xmlns:android="http://schemas.android.com/apk/res/android"
-              android:isDefault="false" />
-          EOF
-
-          cat << 'EOF' > app/src/main/res/values/strings.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">Malik Keyboard</string>
-              <string name="keyboard_name">Malik Custom Keyboard</string>
-          </resources>
+          <input-method xmlns:android="http://schemas.android.com/apk/res/android" android:isDefault="false" />
           EOF
 
           cat << 'EOF' > app/src/main/res/values/styles.xml
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <style name="KeyBtn">
-                  <item name="android:layout_width">0dp</item>
-                  <item name="android:layout_height">match_parent</item>
-                  <item name="android:layout_weight">1</item>
-                  <item name="android:layout_margin">2dp</item>
-                  <item name="android:textColor">#FFFFFF</item>
-                  <item name="android:textSize">15sp</item>
-              </style>
-
-              <style name="ActionKeyBtn" parent="KeyBtn">
-                  <item name="android:textSize">11sp</item>
-              </style>
+            <style name="KeyBtn"><item name="android:layout_width">0dp</item><item name="android:layout_height">match_parent</item><item name="android:layout_weight">1</item><item name="android:layout_margin">2dp</item><item name="android:textColor">#FFFFFF</item><item name="android:textSize">15sp</item></style>
+            <style name="ActBtn" parent="KeyBtn"><item name="android:textSize">11sp</item></style>
           </resources>
           EOF
 
           cat << 'EOF' > app/src/main/res/layout/keyboard_layout.xml
           <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:id="@+id/keyboardRoot"
-              android:layout_width="match_parent"
-              android:layout_height="wrap_content"
-              android:background="#0F172A"
-              android:orientation="vertical"
-              android:padding="6dp">
-
-              <LinearLayout
-                  android:id="@+id/topBar"
-                  android:layout_width="match_parent"
-                  android:layout_height="42dp"
-                  android:gravity="center_vertical"
-                  android:orientation="horizontal"
-                  android:paddingHorizontal="4dp">
-
-                  <TextView
-                      android:id="@+id/brandBanner"
-                      android:layout_width="0dp"
-                      android:layout_height="wrap_content"
-                      android:layout_weight="1"
-                      android:text="MALIK FIAZ • DARK HACKER KEYBOARD"
-                      android:textColor="#38BDF8"
-                      android:textSize="12sp"
-                      android:textStyle="bold" />
-
-                  <Button
-                      android:id="@+id/btnTheme"
-                      android:layout_width="wrap_content"
-                      android:layout_height="34dp"
-                      android:layout_marginEnd="4dp"
-                      android:text="THEME"
-                      android:textColor="#FFFFFF"
-                      android:textSize="10sp" />
-
-                  <Button
-                      android:id="@+id/btnLang"
-                      android:layout_width="wrap_content"
-                      android:layout_height="34dp"
-                      android:text="EN"
-                      android:textColor="#FFFFFF"
-                      android:textSize="11sp" />
-              </LinearLayout>
-
-              <LinearLayout
-                  android:layout_width="match_parent"
-                  android:layout_height="46dp"
-                  android:orientation="horizontal">
-                  <Button style="@style/KeyBtn" android:text="q" />
-                  <Button style="@style/KeyBtn" android:text="w" />
-                  <Button style="@style/KeyBtn" android:text="e" />
-                  <Button style="@style/KeyBtn" android:text="r" />
-                  <Button style="@style/KeyBtn" android:text="t" />
-                  <Button style="@style/KeyBtn" android:text="y" />
-                  <Button style="@style/KeyBtn" android:text="u" />
-                  <Button style="@style/KeyBtn" android:text="i" />
-                  <Button style="@style/KeyBtn" android:text="o" />
-                  <Button style="@style/KeyBtn" android:text="p" />
-              </LinearLayout>
-
-              <LinearLayout
-                  android:layout_width="match_parent"
-                  android:layout_height="46dp"
-                  android:orientation="horizontal">
-                  <Button style="@style/KeyBtn" android:text="a" />
-                  <Button style="@style/KeyBtn" android:text="s" />
-                  <Button style="@style/KeyBtn" android:text="d" />
-                  <Button style="@style/KeyBtn" android:text="f" />
-                  <Button style="@style/KeyBtn" android:text="g" />
-                  <Button style="@style/KeyBtn" android:text="h" />
-                  <Button style="@style/KeyBtn" android:text="j" />
-                  <Button style="@style/KeyBtn" android:text="k" />
-                  <Button style="@style/KeyBtn" android:text="l" />
-              </LinearLayout>
-
-              <LinearLayout
-                  android:layout_width="match_parent"
-                  android:layout_height="46dp"
-                  android:orientation="horizontal">
-                  <Button android:id="@+id/btnShift" style="@style/ActionKeyBtn" android:text="⇧" />
-                  <Button style="@style/KeyBtn" android:text="z" />
-                  <Button style="@style/KeyBtn" android:text="x" />
-                  <Button style="@style/KeyBtn" android:text="c" />
-                  <Button style="@style/KeyBtn" android:text="v" />
-                  <Button style="@style/KeyBtn" android:text="b" />
-                  <Button style="@style/KeyBtn" android:text="n" />
-                  <Button style="@style/KeyBtn" android:text="m" />
-                  <Button android:id="@+id/btnDel" style="@style/ActionKeyBtn" android:text="⌫" />
-              </LinearLayout>
-
-              <LinearLayout
-                  android:layout_width="match_parent"
-                  android:layout_height="46dp"
-                  android:orientation="horizontal">
-                  <Button android:id="@+id/btn123" style="@style/ActionKeyBtn" android:text="?123" />
-                  <Button android:id="@+id/btnSpace" style="@style/KeyBtn" android:layout_weight="4" android:text="Malik Keyboard" />
-                  <Button android:id="@+id/btnEnter" style="@style/ActionKeyBtn" android:text="↵" />
-              </LinearLayout>
-
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/keyboardRoot" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="#090D16" android:orientation="vertical" android:padding="6dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="42dp" android:gravity="center_vertical" android:orientation="horizontal" android:paddingHorizontal="4dp">
+              <TextView android:id="@+id/brandBanner" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="MALIK FIAZ • CYBER KEYBOARD" android:textColor="#38BDF8" android:textSize="12sp" android:textStyle="bold" />
+              <Button android:id="@+id/btnTheme" android:layout_width="wrap_content" android:layout_height="34dp" android:layout_marginEnd="4dp" android:text="CYBER" android:textColor="#FFFFFF" android:textSize="10sp" />
+              <Button android:id="@+id/btnLang" android:layout_width="wrap_content" android:layout_height="34dp" android:text="EN" android:textColor="#FFFFFF" android:textSize="11sp" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="46dp" android:orientation="horizontal">
+              <Button style="@style/KeyBtn" android:text="q" /><Button style="@style/KeyBtn" android:text="w" /><Button style="@style/KeyBtn" android:text="e" /><Button style="@style/KeyBtn" android:text="r" /><Button style="@style/KeyBtn" android:text="t" /><Button style="@style/KeyBtn" android:text="y" /><Button style="@style/KeyBtn" android:text="u" /><Button style="@style/KeyBtn" android:text="i" /><Button style="@style/KeyBtn" android:text="o" /><Button style="@style/KeyBtn" android:text="p" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="46dp" android:orientation="horizontal">
+              <Button style="@style/KeyBtn" android:text="a" /><Button style="@style/KeyBtn" android:text="s" /><Button style="@style/KeyBtn" android:text="d" /><Button style="@style/KeyBtn" android:text="f" /><Button style="@style/KeyBtn" android:text="g" /><Button style="@style/KeyBtn" android:text="h" /><Button style="@style/KeyBtn" android:text="j" /><Button style="@style/KeyBtn" android:text="k" /><Button style="@style/KeyBtn" android:text="l" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="46dp" android:orientation="horizontal">
+              <Button android:id="@+id/btnShift" style="@style/ActBtn" android:text="⇧" /><Button style="@style/KeyBtn" android:text="z" /><Button style="@style/KeyBtn" android:text="x" /><Button style="@style/KeyBtn" android:text="c" /><Button style="@style/KeyBtn" android:text="v" /><Button style="@style/KeyBtn" android:text="b" /><Button style="@style/KeyBtn" android:text="n" /><Button style="@style/KeyBtn" android:text="m" /><Button android:id="@+id/btnDel" style="@style/ActBtn" android:text="⌫" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="46dp" android:orientation="horizontal">
+              <Button android:id="@+id/btn123" style="@style/ActBtn" android:text="?123" /><Button android:id="@+id/btnSpace" style="@style/KeyBtn" android:layout_weight="4" android:text="Malik Keyboard" /><Button android:id="@+id/btnEnter" style="@style/ActBtn" android:text="↵" />
+            </LinearLayout>
           </LinearLayout>
           EOF
 
           cat << 'EOF' > app/src/main/java/com/malikfiaz/customkeyboard/MyCustomKeyboardService.java
           package com.malikfiaz.customkeyboard;
-
           import android.animation.ArgbEvaluator;
           import android.animation.ValueAnimator;
           import android.graphics.Color;
@@ -284,190 +110,111 @@ jobs:
           import android.widget.TextView;
 
           public class MyCustomKeyboardService extends InputMethodService {
+            private boolean upper = false;
+            private int langIdx = 0, themeIdx = 0;
+            private final String[] langs = {"EN", "UR", "AR", "HI"};
+            private final String[] themes = {"CYBER", "NEON", "MATRIX", "CRIMSON"};
+            private final int[] accents = {Color.parseColor("#38BDF8"), Color.parseColor("#C084FC"), Color.parseColor("#22C55E"), Color.parseColor("#F43F5E")};
+            private final int[] keyBgs = {Color.parseColor("#1E293B"), Color.parseColor("#2E1065"), Color.parseColor("#052E16"), Color.parseColor("#4C0519")};
+            private final int[] bgCycle = {Color.parseColor("#090D16"), Color.parseColor("#131B2E"), Color.parseColor("#1E1138"), Color.parseColor("#0A221A"), Color.parseColor("#280B18"), Color.parseColor("#090D16")};
+            private final String[][] en = {{"q","w","e","r","t","y","u","i","o","p"},{"a","s","d","f","g","h","j","k","l"},{"z","x","c","v","b","n","m"}};
+            private final String[][] ur = {{"ق","و","ع","ر","ت","ے","ء","ی","ہ","پ"},{"ا","س","د","ف","گ","ح","ج","ک","ل"},{"ز","ش","چ","ط","ب","ن","م"}};
+            private final String[][] ar = {{"ض","ص","ث","ق","ف","غ","ع","ه","خ","ح"},{"ش","س","ي","ب","ل","ا","ت","ن","م"},{"ئ","ء","ؤ","ر","لا","ى","ة"}};
+            private final String[][] hi = {{"ौ","ै","ा","ी","ू","ब","ह","ग","द","ज"},{"ो","े","्","ि","ु","प","र","क","त"},{"ं","म","न","व","ल","स","य"}};
+            private ValueAnimator anim;
 
-              private boolean isUpperCase = false;
-              private int langIndex = 0;
-              private int themeIndex = 0;
+            @Override public View onCreateInputView() {
+              View v = getLayoutInflater().inflate(R.layout.keyboard_layout, null);
+              setup(v); applyTheme(v); startBg(v); applyKeys(v);
+              return v;
+            }
+            @Override public void onFinishInputView(boolean f) { super.onFinishInputView(f); if (anim != null && anim.isRunning()) anim.pause(); }
+            @Override public void onStartInputView(android.view.inputmethod.EditorInfo i, boolean r) { super.onStartInputView(i, r); if (anim != null && anim.isPaused()) anim.resume(); }
 
-              private final String[] langs = {"EN", "UR", "AR", "HI"};
+            private void startBg(View v) {
+              if (anim != null) anim.cancel();
+              anim = ValueAnimator.ofObject(new ArgbEvaluator(), bgCycle[0], bgCycle[1], bgCycle[2], bgCycle[3], bgCycle[4], bgCycle[5]);
+              anim.setDuration(7000);
+              anim.setRepeatCount(ValueAnimator.INFINITE);
+              anim.addUpdateListener(a -> v.setBackgroundColor((int) a.getAnimatedValue()));
+              anim.start();
+            }
 
-              // Themes: [0]=Cyber Blue, [1]=Neon Purple, [2]=Emerald Hacker, [3]=Crimson Dark
-              private final String[] themeNames = {"CYBER", "NEON", "MATRIX", "CRIMSON"};
-              private final int[] accentColors = {
-                  Color.parseColor("#38BDF8"),
-                  Color.parseColor("#C084FC"),
-                  Color.parseColor("#22C55E"),
-                  Color.parseColor("#F43F5E")
-              };
-              private final int[] keyColors = {
-                  Color.parseColor("#1E293B"),
-                  Color.parseColor("#2E1065"),
-                  Color.parseColor("#052E16"),
-                  Color.parseColor("#4C0519")
-              };
+            private void applyTheme(View v) {
+              int acc = accents[themeIdx], kBg = keyBgs[themeIdx];
+              TextView b = v.findViewById(R.id.brandBanner);
+              if (b != null) { b.setTextColor(acc); b.setText("MALIK FIAZ • " + themes[themeIdx] + " KEYBOARD"); }
+              Button bt = v.findViewById(R.id.btnTheme);
+              if (bt != null) bt.setText(themes[themeIdx]);
+              if (v instanceof ViewGroup) styleBtns((ViewGroup) v, kBg, acc);
+            }
 
-              // Moving background colors
-              private final int[] movingBgPalette = {
-                  Color.parseColor("#090D16"),
-                  Color.parseColor("#131B2E"),
-                  Color.parseColor("#1E1138"),
-                  Color.parseColor("#0A221A"),
-                  Color.parseColor("#280B18"),
-                  Color.parseColor("#090D16")
-              };
-
-              private final String[] row1En = {"q","w","e","r","t","y","u","i","o","p"};
-              private final String[] row2En = {"a","s","d","f","g","h","j","k","l"};
-              private final String[] row3En = {"z","x","c","v","b","n","m"};
-
-              private final String[] row1Ur = {"ق","و","ع","ر","ت","ے","ء","ی","ہ","پ"};
-              private final String[] row2Ur = {"ا","س","د","ف","گ","ح","ج","ک","ل"};
-              private final String[] row3Ur = {"ز","ش","چ","ط","ب","ن","م"};
-
-              private final String[] row1Ar = {"ض","ص","ث","ق","ف","غ","ع","ه","خ","ح"};
-              private final String[] row2Ar = {"ش","س","ي","ب","ل","ا","ت","ن","م"};
-              private final String[] row3Ar = {"ئ","ء","ؤ","ر","لا","ى","ة"};
-
-              private final String[] row1Hi = {"ौ","ै","ा","ी","ू","ब","ह","ग","द","ज"};
-              private final String[] row2Hi = {"ो","े","्","ि","ु","प","र","क","त"};
-              private final String[] row3Hi = {"ं","म","न","व","ल","स","य"};
-
-              private View rootView;
-              private ValueAnimator bgAnimator;
-
-              @Override
-              public View onCreateInputView() {
-                  rootView = getLayoutInflater().inflate(R.layout.keyboard_layout, null);
-                  setupControls(rootView);
-                  applyTheme(rootView);
-                  startMovingBackground(rootView);
-                  applyKeyLabels(rootView);
-                  return rootView;
+            private void styleBtns(ViewGroup g, int kBg, int acc) {
+              for (int i = 0; i < g.getChildCount(); i++) {
+                View c = g.getChildAt(i);
+                if (c instanceof ViewGroup) styleBtns((ViewGroup) c, kBg, acc);
+                else if (c instanceof Button) {
+                  Button btn = (Button) c;
+                  GradientDrawable gd = new GradientDrawable();
+                  gd.setColor(kBg); gd.setCornerRadius(14f);
+                  gd.setStroke((btn.getId() == R.id.btnEnter || btn.getId() == R.id.btnTheme) ? 2 : 1, (btn.getId() == R.id.btnEnter || btn.getId() == R.id.btnTheme) ? acc : Color.parseColor("#33FFFFFF"));
+                  btn.setBackground(gd); btn.setTextColor(Color.WHITE);
+                }
               }
+            }
 
-              @Override
-              public void onFinishInputView(boolean finishingInput) {
-                  super.onFinishInputView(finishingInput);
-                  if (bgAnimator != null && bgAnimator.isRunning()) {
-                      bgAnimator.pause();
+            private void setup(View v) {
+              Button bt = v.findViewById(R.id.btnTheme);
+              if (bt != null) bt.setOnClickListener(x -> { themeIdx = (themeIdx + 1) % themes.length; applyTheme(v); });
+              Button bl = v.findViewById(R.id.btnLang);
+              if (bl != null) bl.setOnClickListener(x -> { langIdx = (langIdx + 1) % langs.length; bl.setText(langs[langIdx]); applyKeys(v); });
+              Button bs = v.findViewById(R.id.btnShift);
+              if (bs != null) bs.setOnClickListener(x -> { upper = !upper; applyKeys(v); });
+              Button bd = v.findViewById(R.id.btnDel);
+              if (bd != null) bd.setOnClickListener(x -> { InputConnection ic = getCurrentInputConnection(); if (ic != null) ic.deleteSurroundingText(1, 0); });
+              Button bsp = v.findViewById(R.id.btnSpace);
+              if (bsp != null) bsp.setOnClickListener(x -> commit(" "));
+              Button be = v.findViewById(R.id.btnEnter);
+              if (be != null) be.setOnClickListener(x -> { InputConnection ic = getCurrentInputConnection(); if (ic != null) { ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER)); } });
+            }
+
+            private void applyKeys(View v) {
+              String[][] src = "UR".equals(langs[langIdx]) ? ur : ("AR".equals(langs[langIdx]) ? ar : ("HI".equals(langs[langIdx]) ? hi : en));
+              String[] all = new String[src[0].length + src[1].length + src[2].length];
+              System.arraycopy(src[0], 0, all, 0, src[0].length);
+              System.arraycopy(src[1], 0, all, src[0].length, src[1].length);
+              System.arraycopy(src[2], 0, all, src[0].length + src[1].length, src[2].length);
+              if (v instanceof ViewGroup) assign((ViewGroup) v, all, new int[]{0});
+            }
+
+            private void assign(ViewGroup g, String[] letters, int[] idx) {
+              for (int i = 0; i < g.getChildCount(); i++) {
+                View c = g.getChildAt(i);
+                if (c instanceof ViewGroup) assign((ViewGroup) c, letters, idx);
+                else if (c instanceof Button) {
+                  Button b = (Button) c;
+                  int id = b.getId();
+                  if (id != R.id.btnTheme && id != R.id.btnLang && id != R.id.btnShift && id != R.id.btnDel && id != R.id.btn123 && id != R.id.btnSpace && id != R.id.btnEnter && idx[0] < letters.length) {
+                    String val = letters[idx[0]++];
+                    if ("EN".equals(langs[langIdx]) && upper) val = val.toUpperCase();
+                    b.setText(val);
+                    final String fv = val;
+                    b.setOnClickListener(x -> commit(fv));
                   }
+                }
               }
+            }
 
-              @Override
-              public void onStartInputView(android.view.inputmethod.EditorInfo info, boolean restarting) {
-                  super.onStartInputView(info, restarting);
-                  if (bgAnimator != null && bgAnimator.isPaused()) {
-                      bgAnimator.resume();
-                  }
-              }
-
-              private void startMovingBackground(View parent) {
-                  if (bgAnimator != null) {
-                      bgAnimator.cancel();
-                  }
-                  bgAnimator = ValueAnimator.ofObject(new ArgbEvaluator(),
-                      movingBgPalette[0],
-                      movingBgPalette[1],
-                      movingBgPalette[2],
-                      movingBgPalette[3],
-                      movingBgPalette[4],
-                      movingBgPalette[5]
-                  );
-                  bgAnimator.setDuration(7000);
-                  bgAnimator.setRepeatCount(ValueAnimator.INFINITE);
-                  bgAnimator.setRepeatMode(ValueAnimator.RESTART);
-                  bgAnimator.addUpdateListener(animator -> {
-                      int animatedColor = (int) animator.getAnimatedValue();
-                      parent.setBackgroundColor(animatedColor);
-                  });
-                  bgAnimator.start();
-              }
-
-              private void applyTheme(View parent) {
-                  int accent = accentColors[themeIndex];
-                  int keyBg = keyColors[themeIndex];
-
-                  TextView banner = parent.findViewById(R.id.brandBanner);
-                  if (banner != null) {
-                      banner.setTextColor(accent);
-                      banner.setText("MALIK FIAZ • " + themeNames[themeIndex] + " KEYBOARD");
-                  }
-
-                  Button btnTheme = parent.findViewById(R.id.btnTheme);
-                  if (btnTheme != null) {
-                      btnTheme.setText(themeNames[themeIndex]);
-                  }
-
-                  if (parent instanceof ViewGroup) {
-                      styleButtonsRecursive((ViewGroup) parent, keyBg, accent);
-                  }
-              }
-
-              private void styleButtonsRecursive(ViewGroup group, int keyBg, int accent) {
-                  for (int i = 0; i < group.getChildCount(); i++) {
-                      View child = group.getChildAt(i);
-                      if (child instanceof ViewGroup) {
-                          styleButtonsRecursive((ViewGroup) child, keyBg, accent);
-                      } else if (child instanceof Button) {
-                          Button b = (Button) child;
-                          GradientDrawable gd = new GradientDrawable();
-                          gd.setColor(keyBg);
-                          gd.setCornerRadius(14f);
-                          int id = b.getId();
-                          if (id == R.id.btnEnter || id == R.id.btnTheme) {
-                              gd.setStroke(2, accent);
-                          } else {
-                              gd.setStroke(1, Color.parseColor("#33FFFFFF"));
-                          }
-                          b.setBackground(gd);
-                          b.setTextColor(Color.WHITE);
-                      }
-                  }
-              }
-
-              private void setupControls(View parent) {
-                  Button btnTheme = parent.findViewById(R.id.btnTheme);
-                  if (btnTheme != null) {
-                      btnTheme.setOnClickListener(v -> {
-                          themeIndex = (themeIndex + 1) % themeNames.length;
-                          applyTheme(parent);
-                      });
-                  }
-
-                  Button btnLang = parent.findViewById(R.id.btnLang);
-                  if (btnLang != null) {
-                      btnLang.setOnClickListener(v -> {
-                          langIndex = (langIndex + 1) % langs.length;
-                          btnLang.setText(langs[langIndex]);
-                          applyKeyLabels(parent);
-                      });
-                  }
-
-                  Button btnShift = parent.findViewById(R.id.btnShift);
-                  if (btnShift != null) {
-                      btnShift.setOnClickListener(v -> {
-                          isUpperCase = !isUpperCase;
-                          applyKeyLabels(parent);
-                      });
-                  }
-
-                  Button btnDel = parent.findViewById(R.id.btnDel);
-                  if (btnDel != null) {
-                      btnDel.setOnClickListener(v -> {
-                          InputConnection ic = getCurrentInputConnection();
-                          if (ic != null) {
-                              ic.deleteSurroundingText(1, 0);
-                          }
-                      });
-                  }
-
-                  Button btnSpace = parent.findViewById(R.id.btnSpace);
-                  if (btnSpace != null) {
-                      btnSpace.setOnClickListener(v -> commitText(" "));
-                  }
-
-                  Button btnEnter = parent.findViewById(R.id.btnEnter);
-                  if (btnEnter != null) {
-                      btnEnter.setOnClickListener(v -> {
-                          InputConnection ic = getCurrentInputConnection();
-                          if (ic != null) 
+            private void commit(String t) { InputConnection ic = getCurrentInputConnection(); if (ic != null) ic.commitText(t, 1); }
+          }
+          EOF
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.4'
+      - name: Build APK
+        run: gradle assembleDebug --warning-mode=none
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Malik-Custom-Keyboard-APK
+          path: app/build/outputs/apk/debug/*.apk
+          
