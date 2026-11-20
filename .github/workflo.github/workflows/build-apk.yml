@@ -291,7 +291,6 @@ jobs:
 
               private final String[] langs = {"EN", "UR", "AR", "HI"};
 
-              // Themes: [0]=Cyber Blue, [1]=Neon Purple, [2]=Emerald Hacker, [3]=Crimson Dark
               private final String[] themeNames = {"CYBER", "NEON", "MATRIX", "CRIMSON"};
               private final int[] accentColors = {
                   Color.parseColor("#38BDF8"),
@@ -306,7 +305,6 @@ jobs:
                   Color.parseColor("#4C0519")
               };
 
-              // Moving background colors
               private final int[] movingBgPalette = {
                   Color.parseColor("#090D16"),
                   Color.parseColor("#131B2E"),
